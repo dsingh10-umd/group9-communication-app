@@ -492,6 +492,267 @@
         console.warn("Calendar grid skipped:", err);
       }
     })();
+    (function initLocalPreviewStorage() {
+      const apiBaseValue = typeof API_BASE === "string" ? API_BASE.trim() : "";
+      if (apiBaseValue !== "") return;
+
+      const MSG_KEY = "terpcomms_local_messages_v1";
+      const EVT_KEY = "terpcomms_local_events_v1";
+
+      const readJson = (key, fallback) => {
+        try {
+          const raw = localStorage.getItem(key);
+          return raw ? JSON.parse(raw) : fallback;
+        } catch {
+          return fallback;
+        }
+      };
+
+      const writeJson = (key, value) => {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch (err) {
+          console.warn("Local storage write skipped:", err);
+        }
+      };
+
+     const messageInput =
+        document.getElementById("message-input") ||
+        document.querySelector('textarea[placeholder*="Write a message"], textarea');
+      const messageForm =
+        document.getElementById("message-form") ||
+        (messageInput ? messageInput.closest("form") : null);
+      const fileInput =
+        document.getElementById("message-file") ||
+        (messageForm
+          ? messageForm.querySelector('input[type="file"]')
+          : document.querySelector('input[type="file"]'));
+      const sendBtn = Array.from(document.querySelectorAll("button")).find(
+        (btn) => btn.textContent.trim().toLowerCase() === "send"
+      );
+      const messageList =
+        document.getElementById("message-list") ||
+        (messageForm && messageForm.previousElementSibling
+          ? messageForm.previousElementSibling
+          : null);
+      const eventForm = document.getElementById("event-form");
+      const eventList = document.getElementById("event-list");
+
+      const getActiveChannelId = () => {
+        const activeNav = document.querySelector(
+          "[data-channel].active, [data-channel-id].active, .channel-item.active, .active[data-channel], .active[data-channel-id]"
+        );
+        if (activeNav) {
+          return (
+            activeNav.dataset.channelId ||
+            activeNav.dataset.channel ||
+            activeNav.textContent.trim()
+          );
+        }
+        const heading = document.querySelector("main h2, #active-channel-title, .channel-header h2");
+        return heading ? heading.textContent.trim() : "# general";
+      };
+
+      const getCurrentUserLabel = () => {
+        const aside = document.querySelector("aside");
+        const switchBtn = aside
+          ? Array.from(aside.querySelectorAll("button")).find((b) =>
+              b.textContent.toLowerCase().includes("switch user")
+            )
+          : null;
+
+        // Usually the name and role sit right above the "Switch User" button
+        const block = switchBtn ? switchBtn.parentElement : aside;
+        const nameEl =
+          document.getElementById("current-user-name") ||
+          document.querySelector("[data-user-name]") ||
+          (block ? block.querySelector("strong, h2, h3, .user-name") : null);
+        const roleEl =
+          document.getElementById("current-user-role") ||
+          document.querySelector("[data-user-role]") ||
+          (block ? block.querySelector(".user-role, .role, small, p, div:nth-child(2)") : null);
+
+        const rawName = nameEl ? nameEl.textContent.trim() : "";
+        const rawRole = roleEl ? roleEl.textContent.trim() : "";
+
+        const name = rawName || "User";
+        const role = rawRole && rawRole !== rawName ? rawRole : "Member";
+        return `${name} (${role})`;
+      };
+
+      const renderLocalMessages = () => {
+        if (!messageList) return;
+        const channelId = getActiveChannelId();
+        const store = readJson(MSG_KEY, {});
+        const items = Array.isArray(store[channelId]) ? store[channelId] : [];
+
+        if (!items.length) return;
+
+        messageList.innerHTML = "";
+        items.forEach((msg) => {
+          const card = document.createElement("div");
+          card.style.padding = "0.65rem 0.85rem";
+          card.style.marginBottom = "0.5rem";
+          card.style.borderRadius = "8px";
+          card.style.background = "var(--panel-alt)";
+          card.style.border = "1px solid var(--border)";
+
+          const meta = document.createElement("div");
+          meta.style.fontSize = "0.78rem";
+          meta.style.color = "var(--muted)";
+          meta.style.marginBottom = "0.25rem";
+          meta.textContent = `${msg.sender} • ${msg.time}`;
+
+          const body = document.createElement("div");
+          body.textContent = msg.text;
+
+          card.appendChild(meta);
+          card.appendChild(body);
+
+         if (msg.fileName) {
+            const att = document.createElement("div");
+            att.style.fontSize = "0.78rem";
+            att.style.marginTop = "0.3rem";
+
+            if (msg.fileDataUrl) {
+              const link = document.createElement("a");
+              link.href = msg.fileDataUrl;
+              link.target = "_blank";
+              link.rel = "noopener";
+              link.textContent = `Attachment: ${msg.fileName}`;
+              link.style.color = "var(--accent)";
+              link.style.textDecoration = "underline";
+              att.appendChild(link);
+            } else {
+              att.style.color = "var(--muted)";
+              att.textContent = `Attachment: ${msg.fileName} (preview only)`;
+            }
+
+            card.appendChild(att);
+          }
+
+          messageList.appendChild(card);
+        });
+      };
+
+      const renderLocalEvents = () => {
+        if (!eventList) return;
+        const events = readJson(EVT_KEY, []);
+        eventList.innerHTML = "";
+
+        if (!events.length) {
+          eventList.innerHTML = `<div style="color:var(--muted); font-size:0.85rem;">No local events added yet.</div>`;
+          return;
+        }
+
+        events.forEach((evt) => {
+          const row = document.createElement("div");
+          row.style.padding = "0.55rem 0.7rem";
+          row.style.marginBottom = "0.45rem";
+          row.style.borderRadius = "6px";
+          row.style.background = "var(--panel-alt)";
+          row.style.border = "1px solid var(--border)";
+          row.style.fontSize = "0.85rem";
+
+          const title = document.createElement("div");
+          title.style.fontWeight = "600";
+          title.textContent = evt.title;
+
+          const detail = document.createElement("div");
+          detail.style.color = "var(--muted)";
+          detail.style.fontSize = "0.78rem";
+          detail.textContent = evt.time ? `${evt.date} at ${evt.time}` : evt.date;
+
+          row.appendChild(title);
+          row.appendChild(detail);
+          eventList.appendChild(row);
+        });
+      };
+
+      if (messageForm && messageInput) {
+        messageForm.addEventListener(
+          "submit",
+          (e) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            const text = messageInput.value.trim();
+            const file =
+              fileInput && fileInput.files && fileInput.files[0]
+                ? fileInput.files[0]
+                : null;
+
+            if (!text && !file) return;
+
+            const saveMessage = (fileDataUrl) => {
+              const channelId = getActiveChannelId();
+              const store = readJson(MSG_KEY, {});
+              if (!Array.isArray(store[channelId])) store[channelId] = [];
+
+              store[channelId].push({
+                sender: getCurrentUserLabel(),
+                text: text || "(Attached file)",
+                fileName: file ? file.name : "",
+                fileDataUrl: fileDataUrl || "",
+                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              });
+
+              writeJson(MSG_KEY, store);
+              messageInput.value = "";
+              if (fileInput) fileInput.value = "";
+              renderLocalMessages();
+            };
+
+            if (file && file.size <= 1024 * 1024) {
+              const reader = new FileReader();
+              reader.onload = () => saveMessage(reader.result);
+              reader.readAsDataURL(file);
+            } else if (file) {
+              saveMessage("");
+            } else {
+              saveMessage("");
+            }
+          },
+          true
+        );
+      }
+
+      if (eventForm) {
+        eventForm.addEventListener(
+          "submit",
+          (e) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            const titleEl = document.getElementById("event-title");
+            const dateEl = document.getElementById("event-date");
+            const timeEl = document.getElementById("event-time");
+
+            const title = titleEl ? titleEl.value.trim() : "";
+            const date = dateEl ? dateEl.value : "";
+            const time = timeEl ? timeEl.value : "";
+
+            if (!title || !date) return;
+
+            const events = readJson(EVT_KEY, []);
+            events.push({ title, date, time });
+            writeJson(EVT_KEY, events);
+
+            if (titleEl) titleEl.value = "";
+            if (timeEl) timeEl.value = "";
+            renderLocalEvents();
+          },
+          true
+        );
+      }
+
+      document.addEventListener("click", () => {
+        setTimeout(renderLocalMessages, 25);
+      });
+
+      renderLocalMessages();
+      renderLocalEvents();
+    })();
   </script>
 </body>
 </html>
