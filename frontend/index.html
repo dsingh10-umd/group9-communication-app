@@ -211,6 +211,12 @@
     <!-- Right Column: Shared Calendar -->
     <section>
       <h3 style="margin-top: 0;">Team Calendar</h3>
+      <div id="terp-cal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+        <button type="button" id="terp-cal-prev" class="secondary" style="margin-top:0;">&lt;</button>
+        <strong id="terp-cal-label"></strong>
+        <button type="button" id="terp-cal-next" class="secondary" style="margin-top:0;">&gt;</button>
+      </div>
+      <div id="terp-cal-grid" style="display:grid; grid-template-columns:repeat(7, 1fr); gap:0.25rem; text-align:center; font-size:0.8rem; margin-bottom:0.85rem;"></div>
       <form id="event-form" class="event-form">
         <input id="event-title" type="text" placeholder="Event title" required />
         <input id="event-date" type="date" required />
@@ -410,6 +416,82 @@
     });
 
     renderAuthGate();
+    (function initTerpCalendar() {
+      try {
+        const grid = document.getElementById("terp-cal-grid");
+        const label = document.getElementById("terp-cal-label");
+        const prevBtn = document.getElementById("terp-cal-prev");
+        const nextBtn = document.getElementById("terp-cal-next");
+        const dateInput = document.getElementById("event-date");
+        if (!grid || !label || !prevBtn || !nextBtn) return;
+
+        let viewDate = new Date();
+
+        function drawCalendar() {
+          const year = viewDate.getFullYear();
+          const month = viewDate.getMonth();
+          label.textContent = viewDate.toLocaleDateString("en-US", {
+            month: "long",
+            year: "numeric",
+          });
+
+          const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          const firstDay = new Date(year, month, 1).getDay();
+          const totalDays = new Date(year, month + 1, 0).getDate();
+
+          const now = new Date();
+          const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+          grid.innerHTML = "";
+
+          weekdays.forEach((dayName) => {
+            const cell = document.createElement("div");
+            cell.textContent = dayName;
+            cell.style.color = "var(--muted)";
+            cell.style.fontWeight = "600";
+            cell.style.padding = "0.2rem 0";
+            grid.appendChild(cell);
+          });
+
+          for (let i = 0; i < firstDay; i++) {
+            grid.appendChild(document.createElement("div"));
+          }
+
+          for (let day = 1; day <= totalDays; day++) {
+            const isoDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            const dayBtn = document.createElement("button");
+            dayBtn.type = "button";
+            dayBtn.textContent = day;
+            dayBtn.style.padding = "0.35rem 0";
+            dayBtn.style.borderRadius = "6px";
+            dayBtn.style.border = isoDate === todayKey ? "1px solid var(--accent)" : "1px solid var(--border)";
+            dayBtn.style.background = isoDate === todayKey ? "var(--panel-alt)" : "var(--panel)";
+            dayBtn.style.color = "var(--text)";
+            dayBtn.style.cursor = "pointer";
+
+            dayBtn.addEventListener("click", () => {
+              if (dateInput) dateInput.value = isoDate;
+            });
+
+            grid.appendChild(dayBtn);
+          }
+        }
+
+        prevBtn.addEventListener("click", () => {
+          viewDate.setMonth(viewDate.getMonth() - 1);
+          drawCalendar();
+        });
+
+        nextBtn.addEventListener("click", () => {
+          viewDate.setMonth(viewDate.getMonth() + 1);
+          drawCalendar();
+        });
+
+        drawCalendar();
+      } catch (err) {
+        console.warn("Calendar grid skipped:", err);
+      }
+    })();
   </script>
 </body>
 </html>
