@@ -616,16 +616,29 @@
 
             if (msg.fileDataUrl) {
               const link = document.createElement("a");
-              link.href = msg.fileDataUrl;
-              link.target = "_blank";
-              link.rel = "noopener";
+              link.href = "#";
               link.textContent = `Attachment: ${msg.fileName}`;
               link.style.color = "var(--accent)";
               link.style.textDecoration = "underline";
+
+              link.addEventListener("click", (e) => {
+                e.preventDefault();
+                fetch(msg.fileDataUrl)
+                  .then((res) => res.blob())
+                  .then((blob) => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    window.open(blobUrl, "_blank", "noopener,noreferrer");
+                  })
+                  .catch(() => {
+                    const win = window.open("", "_blank", "noopener,noreferrer");
+                    if (win) win.location.href = msg.fileDataUrl;
+                  });
+              });
+
               att.appendChild(link);
             } else {
               att.style.color = "var(--muted)";
-              att.textContent = `Attachment: ${msg.fileName} (preview only)`;
+              att.textContent = `Attachment: ${msg.fileName} (over 1 MB — preview only)`;
             }
 
             card.appendChild(att);
